@@ -120,7 +120,6 @@ void join_ip_conversations(map<IP_key, values>&conv){
         key.src_ip = iter->first.dst_ip;
         key.dst_ip = iter->first.src_ip;
 
-        int i=0;
         for(inner_iter = conv.begin(); inner_iter != conv.end(); ++inner_iter){
             inner_iter = conv.find(key);
             if( inner_iter != conv.end()){
@@ -181,14 +180,16 @@ void join_mac_conversations(map<MAC_key, values>&conv){
         memcpy(key.src_mac, iter->first.dst_mac, sizeof(key.src_mac));
         memcpy(key.dst_mac, iter->first.src_mac, sizeof(key.dst_mac));
 
-        inner_iter = conv.find(key);
-        if( inner_iter != conv.end()){
-            iter->second.Rx_bytes += inner_iter->second.Tx_bytes;
-            iter->second.Rx_packets += inner_iter->second.Tx_packets;
-            iter->second.total_bytes += inner_iter->second.total_bytes;
-            iter->second.total_packets += inner_iter->second.total_packets;
-            conv.erase(inner_iter->first);
-            break;
+        for(inner_iter = conv.begin(); inner_iter != conv.end(); ++inner_iter){
+            inner_iter = conv.find(key);
+            if( inner_iter != conv.end()){
+                iter->second.Rx_bytes += inner_iter->second.Tx_bytes;
+                iter->second.Rx_packets += inner_iter->second.Tx_packets;
+                iter->second.total_bytes += inner_iter->second.total_bytes;
+                iter->second.total_packets += inner_iter->second.total_packets;
+                conv.erase(inner_iter->first);
+                break;
+            }
         }
     }
 }
