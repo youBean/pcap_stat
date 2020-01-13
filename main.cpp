@@ -42,26 +42,23 @@ int main(int argc, char * argv[]){
         if (res == -1 || res == -2) break;
         
         Packet * packet = (Packet *)data;
-        if(ntohs(packet->eth.ether_type) == 0x0800){ //Only available on IPv4
-            printf(". ");
-            IP_key ip_key;
-            MAC_key mac_key;
+        printf(". ");
+        IP_key ip_key;
+        MAC_key mac_key;
 
+        if(ntohs(packet->eth.ether_type) == 0x0800){
             ip_key.src_ip = packet->ip.src_ip;
             ip_key.dst_ip = packet->ip.dst_ip;
-
-            memcpy(mac_key.src_mac, packet->eth.src_MAC, sizeof(mac_key.src_mac));
-            memcpy(mac_key.dst_mac, packet->eth.dst_MAC, sizeof(mac_key.dst_mac));
-
             ip_conversations(ip_conv, ip_key, header);
-            mac_conversations(mac_conv, mac_key, header);
-        }else{
-            continue;
         }
+
+        memcpy(mac_key.src_mac, packet->eth.src_MAC, sizeof(mac_key.src_mac));
+        memcpy(mac_key.dst_mac, packet->eth.dst_MAC, sizeof(mac_key.dst_mac));
+
+        mac_conversations(mac_conv, mac_key, header);
+
     }printf("\n");
     pcap_close(handle);
-
-    printf("elements: %d\n", ip_conv.size());
     
     join_ip_conversations(ip_conv);
     join_mac_conversations(mac_conv);
@@ -89,29 +86,29 @@ int main(int argc, char * argv[]){
         if(layer == 3){ return 0; }
         if(layer < 1 || layer > 3){
             printf("[-] Invalid Input\n");
-        }
-        
-        if(menu == 1){
-            if(layer == 1){
-                printf("=====================================================\n");
-                printf("=                IP Conversations                   =\n");
-                print_ip_conversations(ip_conv);
-            }else if(layer == 2){
-                printf("=====================================================\n");
-                printf("=               MAC Conversations                   =\n");
-                print_mac_conversations(mac_conv);
+        }else{
+            if(menu == 1){
+                if(layer == 1){
+                    printf("=====================================================\n");
+                    printf("=                IP Conversations                   =\n");
+                    print_ip_conversations(ip_conv);
+                }else if(layer == 2){
+                    printf("=====================================================\n");
+                    printf("=               MAC Conversations                   =\n");
+                    print_mac_conversations(mac_conv);
+                }
+            }else if(menu == 2){
+                if(layer == 1){
+                    printf("=====================================================\n");
+                    printf("=                  IP Endpoints                     =\n");
+                    print_ip_endpoints(ip_end);
+                }else if(layer == 2){
+                    printf("=====================================================\n");
+                    printf("=                 MAC Endpoints                     =\n");
+                    print_mac_endpoints(mac_end);
+                }
             }
-        }else if(menu == 2){
-            if(layer == 1){
-                printf("=====================================================\n");
-                printf("=                  IP Endpoints                     =\n");
-                print_ip_endpoints(ip_end);
-            }else if(layer == 2){
-                printf("=====================================================\n");
-                printf("=                 MAC Endpoints                     =\n");
-                print_mac_endpoints(mac_end);
-            }
-        }
+        } 
     }
     return 0;
 }
