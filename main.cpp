@@ -42,7 +42,6 @@ int main(int argc, char * argv[]){
         if (res == -1 || res == -2) break;
         
         Packet * packet = (Packet *)data;
-        printf(". ");
         IP_key ip_key;
         MAC_key mac_key;
 
