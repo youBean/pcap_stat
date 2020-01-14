@@ -32,12 +32,7 @@ typedef struct MAC{
     uint8_t mac[6];
     bool operator <(const MAC& var) const
     {
-        unsigned int my_mac, dmac;
-        for(int i=0; i < 6; i++){
-            my_mac += mac[i];
-            dmac += var.mac[i];
-        }
-        return my_mac < dmac;
+        return memcmp(mac, var.mac, sizeof(mac)) < 0;
     }
 }MAC;
 
@@ -46,17 +41,10 @@ typedef struct MAC_key{
     uint8_t dst_mac[6];
     bool operator <(const MAC_key& var) const
     {
-        unsigned int my_smac, my_dmac, smac, dmac;
-        for(int i=0; i < 6; i++){
-            my_smac += src_mac[i];
-            my_dmac += dst_mac[i];
-            smac += var.src_mac[i];
-            dmac += var.dst_mac[i];
-        }
-        if(my_smac != smac){
-            return my_smac < smac;
+        if(memcmp(src_mac, var.src_mac, sizeof(src_mac)) != 0){
+            return memcmp(src_mac, var.src_mac, sizeof(src_mac)) < 0;
         }else{
-            return my_dmac < dmac;
+            return memcmp(dst_mac, var.dst_mac, sizeof(dst_mac)) < 0;
         }
     }
 }MAC_key;
@@ -84,11 +72,10 @@ typedef struct {
 } values;
 #pragma pack(pop)
 
+// IP conversations function
 void ntoa(uint32_t ip, char * dst){ 
     sprintf(dst, "%d.%d.%d.%d", ip&0xFF, (ip>>8)&0xFF, (ip>>16)&0xFF, (ip>>24)&0xFF);
 }
-
-// IP conversations function
 void ip_conversations(map<IP_key, values>&conv, IP_key key, struct pcap_pkthdr* header){
     map<IP_key, values>::iterator iter;
     iter = conv.find(key);
@@ -113,23 +100,19 @@ void ip_conversations(map<IP_key, values>&conv, IP_key key, struct pcap_pkthdr* 
 }
 void join_ip_conversations(map<IP_key, values>&conv){
     map<IP_key, values>::iterator iter;
-    map<IP_key, values>::iterator inner_iter;
 
     for(iter = conv.begin(); iter != conv.end(); ++iter){
         IP_key key;
         key.src_ip = iter->first.dst_ip;
         key.dst_ip = iter->first.src_ip;
 
-        for(inner_iter = conv.begin(); inner_iter != conv.end(); ++inner_iter){
-            inner_iter = conv.find(key);
-            if( inner_iter != conv.end()){
-                iter->second.Rx_bytes += inner_iter->second.Tx_bytes;
-                iter->second.Rx_packets += inner_iter->second.Tx_packets;
-                iter->second.total_bytes += inner_iter->second.total_bytes;
-                iter->second.total_packets += inner_iter->second.total_packets;
-                conv.erase(inner_iter->first);
-                break;
-            }
+        map<IP_key, values>::iterator inner_iter = conv.find(key);
+        if( inner_iter != conv.end()){
+            iter->second.Rx_bytes += inner_iter->second.Tx_bytes;
+            iter->second.Rx_packets += inner_iter->second.Tx_packets;
+            iter->second.total_bytes += inner_iter->second.total_bytes;
+            iter->second.total_packets += inner_iter->second.total_packets;
+            conv.erase(inner_iter);
         }
     }
 }
@@ -148,68 +131,7 @@ void print_ip_conversations(map<IP_key, values>&conv){
     }
     printf("=====================================================\n");
 }
-
-// MAC conversations function
-void mac_conversations(map<MAC_key, values>&conv, MAC_key key, struct pcap_pkthdr* header){
-    map<MAC_key, values>::iterator iter;
-    iter = conv.find(key);
-    if(iter == conv.end()){
-        values var;
-        var.Rx_bytes = 0;
-        var.Rx_packets = 0;
-        var.total_packets = 1;
-        var.total_bytes = header->caplen;
-        var.Tx_packets = 1;
-        var.Tx_bytes = header->caplen;
-
-        conv.insert(pair<MAC_key, values>(key, var));
-
-    }else{
-        iter->second.Tx_packets++;
-        iter->second.Tx_bytes += header->caplen;
-        iter->second.total_packets++;
-        iter->second.total_bytes += header->caplen;
-    }
-}
-void join_mac_conversations(map<MAC_key, values>&conv){
-    map<MAC_key, values>::iterator iter;
-    map<MAC_key, values>::iterator inner_iter;
-
-    for(iter = conv.begin(); iter != conv.end(); ++iter){
-        MAC_key key;
-        memcpy(key.src_mac, iter->first.dst_mac, sizeof(key.src_mac));
-        memcpy(key.dst_mac, iter->first.src_mac, sizeof(key.dst_mac));
-
-        for(inner_iter = conv.begin(); inner_iter != conv.end(); ++inner_iter){
-            inner_iter = conv.find(key);
-            if( inner_iter != conv.end()){
-                iter->second.Rx_bytes += inner_iter->second.Tx_bytes;
-                iter->second.Rx_packets += inner_iter->second.Tx_packets;
-                iter->second.total_bytes += inner_iter->second.total_bytes;
-                iter->second.total_packets += inner_iter->second.total_packets;
-                conv.erase(inner_iter->first);
-                break;
-            }
-        }
-    }
-}
-void print_MAC(const uint8_t *addr){
-    printf("%02X:%02X:%02X:%02X:%02X:%02X",
-           addr[0],addr[1],addr[2],addr[3],
-            addr[4],addr[5]);
-}
-void print_mac_conversations(map<MAC_key, values>&conv){
-    map<MAC_key, values>::iterator iter;
-    for(iter = conv.begin(); iter != conv.end(); ++iter){
-        printf("=====================================================\n");
-
-        printf("addr A( "); print_MAC(iter->first.src_mac); printf(") <-> addr B( "); print_MAC(iter->first.dst_mac); printf(")\n");
-        printf("total   packets / bytes: %d / %d\n",(*iter).second.total_packets,(*iter).second.total_bytes);
-        printf("A -> B  packets / bytes: %d / %d\n", (*iter).second.Tx_packets, (*iter).second.Tx_bytes);
-        printf("B -> A  packets / bytes: %d / %d\n", (*iter).second.Rx_packets, (*iter).second.Rx_bytes);
-    }
-    printf("=====================================================\n");
-}
+// IP endpoints function
 void convert_conv_to_end(map<uint32_t, values>&end, map<IP_key, values>&conv, uint32_t key, values val){
     map<IP_key, values>::iterator inner_iter;
     for(inner_iter = conv.begin(); inner_iter != conv.end(); ++inner_iter){
@@ -260,7 +182,80 @@ void ip_endpoints(map<uint32_t, values>&end, map<IP_key, values>&conv){
         convert_conv_to_end(end, conv, rkey,rval);
     }
 }
+void print_ip_endpoints(map<uint32_t, values>&end){
+    map<uint32_t, values>::iterator iter;
+    for(iter = end.begin(); iter != end.end(); ++iter){
+        printf("=====================================================\n");
+        char addr[18];
+        ntoa((*iter).first, addr);
 
+        printf("addr ( %s )\n", addr);
+        printf("total packets / bytes: %d / %d\n",(*iter).second.total_packets,(*iter).second.total_bytes);
+        printf("Tx    packets / bytes: %d / %d\n", (*iter).second.Tx_packets, (*iter).second.Tx_bytes);
+        printf("Rx    packets / bytes: %d / %d\n", (*iter).second.Rx_packets, (*iter).second.Rx_bytes);
+    }
+    printf("=====================================================\n");
+}
+
+// MAC conversations function
+void print_MAC(const uint8_t *addr){
+    printf("%02X:%02X:%02X:%02X:%02X:%02X",
+           addr[0],addr[1],addr[2],addr[3],
+            addr[4],addr[5]);
+}
+void mac_conversations(map<MAC_key, values>&conv, MAC_key key, struct pcap_pkthdr* header){
+    map<MAC_key, values>::iterator iter;
+    iter = conv.find(key);
+    if(iter == conv.end()){
+        values var;
+        var.Rx_bytes = 0;
+        var.Rx_packets = 0;
+        var.total_packets = 1;
+        var.total_bytes = header->caplen;
+        var.Tx_packets = 1;
+        var.Tx_bytes = header->caplen;
+
+        conv.insert(pair<MAC_key, values>(key, var));
+
+    }else{
+        iter->second.Tx_packets++;
+        iter->second.Tx_bytes += header->caplen;
+        iter->second.total_packets++;
+        iter->second.total_bytes += header->caplen;
+    }
+}
+void join_mac_conversations(map<MAC_key, values>&conv){
+    map<MAC_key, values>::iterator iter;
+
+    for(iter = conv.begin(); iter != conv.end(); ++iter){
+        MAC_key key;
+        memcpy(key.src_mac, iter->first.dst_mac, sizeof(key.src_mac));
+        memcpy(key.dst_mac, iter->first.src_mac, sizeof(key.dst_mac));
+
+        map<MAC_key, values>::iterator inner_iter = conv.find(key);
+        if( inner_iter != conv.end()){
+            iter->second.Rx_bytes += inner_iter->second.Tx_bytes;
+            iter->second.Rx_packets += inner_iter->second.Tx_packets;
+            iter->second.total_bytes += inner_iter->second.total_bytes;
+            iter->second.total_packets += inner_iter->second.total_packets;
+            conv.erase(inner_iter);
+        }
+    }
+}
+void print_mac_conversations(map<MAC_key, values>&conv){
+    map<MAC_key, values>::iterator iter;
+    for(iter = conv.begin(); iter != conv.end(); ++iter){
+        printf("=====================================================\n");
+
+        printf("addr A( "); print_MAC(iter->first.src_mac); printf(") <-> addr B( "); print_MAC(iter->first.dst_mac); printf(" )\n");
+        printf("total   packets / bytes: %d / %d\n",(*iter).second.total_packets,(*iter).second.total_bytes);
+        printf("A -> B  packets / bytes: %d / %d\n", (*iter).second.Tx_packets, (*iter).second.Tx_bytes);
+        printf("B -> A  packets / bytes: %d / %d\n", (*iter).second.Rx_packets, (*iter).second.Rx_bytes);
+    }
+    printf("=====================================================\n");
+}
+
+// MAC endpoints function
 void convert_mac_conv_to_end(map<MAC, values>&end, map<MAC_key, values>&conv, MAC key, values val){
     map<MAC_key, values>::iterator inner_iter;
     for(inner_iter = conv.begin(); inner_iter != conv.end(); ++inner_iter){
@@ -312,20 +307,6 @@ void mac_endpoints(map<MAC, values>&end, map<MAC_key, values>&conv){
         }
         convert_mac_conv_to_end(end, conv, rkey,rval);
     }
-}
-void print_ip_endpoints(map<uint32_t, values>&end){
-    map<uint32_t, values>::iterator iter;
-    for(iter = end.begin(); iter != end.end(); ++iter){
-        printf("=====================================================\n");
-        char addr[18];
-        ntoa((*iter).first, addr);
-
-        printf("addr ( %s )\n", addr);
-        printf("total packets / bytes: %d / %d\n",(*iter).second.total_packets,(*iter).second.total_bytes);
-        printf("Tx    packets / bytes: %d / %d\n", (*iter).second.Tx_packets, (*iter).second.Tx_bytes);
-        printf("Rx    packets / bytes: %d / %d\n", (*iter).second.Rx_packets, (*iter).second.Rx_bytes);
-    }
-    printf("=====================================================\n");
 }
 void print_mac_endpoints(map<MAC, values>&end){
     map<MAC, values>::iterator iter;
